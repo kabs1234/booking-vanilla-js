@@ -65,5 +65,5 @@ adFormCheckInTime.addEventListener('change', onChangingCheckingIn);
 adFormCheckOutTime.addEventListener('change', onChangingCheckingOut);
 adForm.addEventListener('submit', (evt) => {
   evt.preventDefault();
-  console.log(pristineForm.validate());
+  console.log(pristineForm.validate(), validateFormPrice(Number(adFormPrice.value)));
 });
