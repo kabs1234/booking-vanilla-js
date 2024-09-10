@@ -81,7 +81,7 @@
                 <img src="img/muffin-grey.svg" alt="Аватар пользователя" width="40" height="44">
               </div>
               <div class="ad-form__field">
-                <input type="file" id="avatar" name="avatar" class="ad-form-header__input visually-hidden">
+                <input type="file" id="avatar" name="avatar" class="ad-form-header__input visually-hidden" accept="image/*">
                 <label class="ad-form-header__drop-zone" for="avatar">Загрузить<br>фото...</label>
               </div>
               <p class="ad-form-header__info">Заполните все обязательные поля, назначьте цену, загрузите аватар и фото жилья. Придумайте интересное описание. Оно сделает объявление более живым и привлекательным. Получившееся объявление должно давать гостям полное представление о вашем жилье.</p>
@@ -93,7 +93,7 @@
           </fieldset>
           <fieldset class="ad-form__element ad-form__element--wide">
             <label class="ad-form__label" for="address">Адрес (координаты)</label>
-            <input id="address" name="address" type="text" readonly>
+            <input id="address" name="address" type="text" value="35.68787, 139.75513" readonly>
           </fieldset>
           <fieldset class="ad-form__element">
             <label class="ad-form__label" for="type">Тип жилья</label>
@@ -164,7 +164,7 @@
             <label class="ad-form__label">Фотография жилья</label>
             <div class="ad-form__photo-container">
               <div class="ad-form__upload">
-                <input type="file" id="images" name="images" class="ad-form__input visually-hidden">
+                <input type="file" id="images" name="images" class="ad-form__input visually-hidden" accept="image/*">
                 <label for="images" class="ad-form__drop-zone">Загрузить<br>фото...</label>
               </div>
               <div class="ad-form__photo"></div>
@@ -233,6 +233,26 @@
       </div>
     </template>
 
+    <script async>
+      const adForm = document.querySelector('.ad-form');
+      const mapFilters = document.querySelector('.map__filters');
+      const allFormElementsInForm = [...adForm.querySelectorAll('.ad-form__element')];
+      const avatarInput = adForm.querySelector('.ad-form-header');
+      const allFiltersInMap = [...mapFilters.querySelectorAll('.map__filter')];
+      const mapFeatures = mapFilters.querySelector('.map__features');
+
+      adForm.classList.add('ad-form--disabled');
+      mapFilters.classList.add('map__filters--disabled');
+      avatarInput.disabled = true;
+      allFormElementsInForm.forEach((fieldset) => {
+        fieldset.disabled = true;
+      });
+
+      mapFeatures.disabled = true;
+      allFiltersInMap.forEach((filter) => {
+        filter.disabled = true;
+      });
+    </script>
     <script src="./js/main.js" type="module"></script>
     <script src="./nouislider/nouislider.js" type="text/javascript"></script>
     <script src="./leaflet/leaflet-src.js" type="text/javascript"></script>

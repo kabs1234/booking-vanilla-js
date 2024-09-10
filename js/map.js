@@ -1,29 +1,102 @@
-import { MAX_MARKERS } from './constants.js';
+import { MAX_MARKERS, CENTRE_OF_TOKYO, RERENDER_DELAY } from './constants.js';
+import { disabledSlider, enableSlider, resetSlider } from './slider.js';
 
 const mapCanvas = document.querySelector('.map__canvas');
 const mapFilters = document.querySelector('.map__filters');
-
 const addressInput = document.querySelector('#address');
-addressInput.value = '35.68832, 139.75438';
+const adForm = document.querySelector('.ad-form');
+const allFormElementsInForm = [...adForm.querySelectorAll('.ad-form__element')];
+const avatarInput = adForm.querySelector('.ad-form-header');
+const allFiltersInMap = [...mapFilters.querySelectorAll('.map__filter')];
+const mapFeatures = mapFilters.querySelector('.map__features');
 
-
-const map = L.map(mapCanvas).setView([35.68832, 139.75438], 13);
-const markerIcon = L.icon({
-  iconUrl: '../img/markers/marker-52.png',
-  iconSize: [52, 52],
-  iconAnchor: [26, 52],
-});
-const marker = L.marker([35.688, 139.754], {icon: markerIcon, draggable: true});
-marker.addTo(map);
+let map;
+let savedOffers; // to not fetch everytime when you want to reset map
 const usesrMarkersLayer = L.layerGroup();
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-}).addTo(map);
-marker.addEventListener('move', () => {
-  const [lat, lng] = [marker.getLatLng().lat, marker.getLatLng().lng];
-  addressInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-});
+
+const getDistance = (lat1, lon1, lat2, lon2) => {
+  const radlat1 = (Math.PI * lat1) / 180;
+  const radlat2 = (Math.PI * lat2) / 180;
+
+  const theta = lon1 - lon2;
+  const radtheta = (Math.PI * theta) / 180;
+
+  let dist =
+        Math.sin(radlat1) * Math.sin(radlat2) +
+        Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+  dist = Math.acos(dist);
+  dist = (dist * 180) / Math.PI;
+  dist = dist * 60 * 1.1515;
+  dist = dist * 1.609344;
+
+  return dist;
+};
+
+const sortByDistance = (locations) => {
+  for ( const location of locations ) {
+    location.distanceFromOrigin = getDistance( location.lat, location.lng, CENTRE_OF_TOKYO[0], CENTRE_OF_TOKYO[1] );
+  }
+
+  locations.sort( ( a, b ) => a.distanceFromOrigin - b.distanceFromOrigin );
+};
+
+const initActiveState = () => {
+  adForm.classList.remove('ad-form--disabled');
+
+  avatarInput.disabled = false;
+  allFormElementsInForm.forEach((fieldset) => {
+    fieldset.disabled = false;
+  });
+
+
+  enableSlider();
+};
+
+const debounce = (callback, timeoutDelay) => {
+  let timeoutId;
+  return (...rest) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => callback.apply(this, rest), timeoutDelay);
+  };
+};
+
+const disableMapFilters = () => {
+  mapFilters.classList.remove('map__filters--disabled');
+
+  mapFeatures.disabled = false;
+  allFiltersInMap.forEach((filter) => {
+    filter.disabled = false;
+  });
+};
+
+const initMap = () => {
+  map = L.map(mapCanvas).setView(CENTRE_OF_TOKYO, 13);
+  const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  });
+  tileLayer.addTo(map);
+
+  tileLayer.addEventListener('load', () => {
+    initActiveState();
+  });
+};
+
+const initDraggableMarker = () => {
+  const markerIcon = L.icon({
+    iconUrl: '../img/markers/marker-52.png',
+    iconSize: [52, 52],
+    iconAnchor: [26, 52],
+  });
+  const marker = L.marker(CENTRE_OF_TOKYO, {icon: markerIcon, draggable: true});
+
+  marker.addEventListener('move', () => {
+    const [lat, lng] = [marker.getLatLng().lat, marker.getLatLng().lng];
+    addressInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  });
+
+  marker.addTo(map);
+};
 
 const filterByHousingType = (houseType, allOffers) => {
   if (houseType === 'any') {
@@ -161,6 +234,7 @@ const getOffers = async () => {
   try {
     const offersFetch = await fetch('https://25.javascript.htmlacademy.pro/keksobooking/data');
     const offersInfo = await offersFetch.json();
+    savedOffers = [...offersInfo];
     return offersInfo;
   } catch (err) {
     const errorElement = document.createElement('p');
@@ -171,27 +245,55 @@ const getOffers = async () => {
   }
 };
 
-getOffers().then((offersInfo) => {
-  const offersLocations = offersInfo.map((offer) => offer.location);
-  const offersData = offersInfo.map((offer) => ({...offer.author, ...offer.offer}));
+const placeUsersOffersOnMap = async (offersInfo) => {
 
-  for (let i = 0; i < MAX_MARKERS; i++) {
-    placeUserMarker(offersLocations[i], offersData[i]);
-  }
+  try {
+    const usersOffers = await offersInfo;
+    const offersLocations = usersOffers.map((offer) => offer.location);
+    sortByDistance(offersLocations);
+    const offersData = usersOffers.map((offer) => ({...offer.author, ...offer.offer}));
 
-  mapFilters.addEventListener('change', () => {
-    const filteredOffers = applyAllFilters(offersInfo);
-
-    const filteredOffersLocations = filteredOffers.map((offer) => offer.location);
-    const filteredOffersData = filteredOffers.map((offer) => ({...offer.author, ...offer.offer}));
-
-    const filteredUserMarkersQuantity = filteredOffers.length >= MAX_MARKERS ? MAX_MARKERS : filteredOffers.length;
-    usesrMarkersLayer.clearLayers();
-
-    for (let i = 0; i < filteredUserMarkersQuantity; i++) {
-      placeUserMarker(filteredOffersLocations[i], filteredOffersData[i]);
+    for (let i = 0; i < MAX_MARKERS; i++) {
+      placeUserMarker(offersLocations[i], offersData[i]);
     }
-  });
-});
+    disableMapFilters();
 
+    mapFilters.addEventListener('change', debounce(() => {
+      const filteredOffers = applyAllFilters(usersOffers);
 
+      const filteredOffersLocations = filteredOffers.map((offer) => offer.location);
+      sortByDistance(filteredOffersLocations);
+      const filteredOffersData = filteredOffers.map((offer) => ({...offer.author, ...offer.offer}));
+
+      const filteredUserMarkersQuantity = filteredOffers.length >= MAX_MARKERS ? MAX_MARKERS : filteredOffers.length;
+      usesrMarkersLayer.clearLayers();
+
+      for (let i = 0; i < filteredUserMarkersQuantity; i++) {
+        placeUserMarker(filteredOffersLocations[i], filteredOffersData[i]);
+      }
+    }, RERENDER_DELAY));
+  } catch (err) {
+    const errorElement = document.createElement('p');
+    errorElement.style = 'position: fixed; top: 0; left: 0; right: 0; margin: 0 auto; font-size: 20px; color: #ff0000; text-align: center; z-index: 1000;';
+    errorElement.innerText = 'Похожие объявления не были загружены';
+    document.body.append(errorElement);
+    setTimeout(() => errorElement.remove(), 5000);
+  }
+};
+
+export const resetMapAndForms = () => {
+  mapFilters.reset();
+  resetSlider();
+  adForm.reset();
+  map.off();
+  map.remove();
+  usesrMarkersLayer.clearLayers();
+  initMap();
+  initDraggableMarker();
+  placeUsersOffersOnMap(savedOffers);
+};
+
+disabledSlider();
+initMap();
+initDraggableMarker();
+placeUsersOffersOnMap(getOffers());
