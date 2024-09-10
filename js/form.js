@@ -73,54 +73,11 @@ const validateFormRoomCapacity = (value) => {
   }
 };
 
-const onChangingCheckingIn = () => {
-  adFormCheckOutTime.value = adFormCheckInTime.value;
+const synchronizeTimeFields = (source, target) => {
+  target.value = source.value;
 };
 
-const onChangingCheckingOut = () => {
-  adFormCheckInTime.value = adFormCheckOutTime.value;
-};
-
-const removeOnClickOutside = (evt, firstRemovingElement, secondRemovingElement = '') => {
-  const firstContainer = firstRemovingElement;
-  const secondContainer = secondRemovingElement;
-
-  if (firstContainer && secondContainer) {
-    if (!firstContainer.contains(evt.target) && !secondContainer.contains(evt.target)) {
-      firstContainer.parentElement.remove();
-      document.removeEventListener('mouseup', removeOnClickOutside);
-    }
-  } else {
-    if (!firstContainer.contains(evt.target)) {
-      firstContainer.parentElement.remove();
-      document.removeEventListener('mouseup', removeOnClickOutside);
-    }
-  }
-
-};
-
-const removeOnEscapePressing = (evt, removingElement) => {
-  if (evt.keyCode === 27 || evt.key === 'Escape' || evt.key === 'Esc') {
-    removingElement.remove();
-  }
-};
-
-const removeOnClick = (removingElement) => {
-  removingElement.remove();
-};
-
-pristineForm.addValidator(adFormHeadline, validateFormHeadline, 'Длина сообщения должна быть не менее 30 символов');
-pristineForm.addValidator(adFormPrice, validateFormPrice, 'Мин цена Бунгало - 0 руб, Квартира - 1000, Отель - 3000, Дом - 5000, Дворец - 10000. Макс цена для всех 100 000 руб');
-pristineForm.addValidator(adFormRoomNumber, validateFormRoomNumber, 'Количество комнат должно соответстовать количеству гостей');
-pristineForm.addValidator(adFormRoomCapacity, validateFormRoomCapacity, 'Количество мест должно соответстовать количеству комнат или быть меньше');
-
-adFormCheckInTime.addEventListener('change', onChangingCheckingIn);
-adFormCheckOutTime.addEventListener('change', onChangingCheckingOut);
-adFormAvatarInput.addEventListener('change', (evt) => {
-  adFormAvatar.src = URL.createObjectURL(evt.target.files[0]);
-});
-
-adFormHousePhotosInput.addEventListener('change', (evt) => {
+const addPhoto = (evt) => {
   const allHousePhotos = document.querySelectorAll('.ad-form__photo img');
   const houseImage = document.createElement('img');
   houseImage.width = 70;
@@ -136,7 +93,24 @@ adFormHousePhotosInput.addEventListener('change', (evt) => {
     adFormHousePhotosContainer.append(houseImageWrapper);
     houseImageWrapper.append(houseImage);
   }
-});
+};
+
+const removeOnClickOutside = (evt, firstRemovingElement, secondRemovingElement = null) => {
+  if (!firstRemovingElement.contains(evt.target) && (!secondRemovingElement || !secondRemovingElement.contains(evt.target))) {
+    firstRemovingElement.parentElement.remove();
+    document.removeEventListener('mouseup', removeOnClickOutside);
+  }
+};
+
+const removeOnEscapePressing = (evt, removingElement) => {
+  if (evt.keyCode === 27 || evt.key === 'Escape' || evt.key === 'Esc') {
+    removingElement.remove();
+  }
+};
+
+const removeOnClick = (removingElement) => {
+  removingElement.remove();
+};
 
 const addFailedSubmitElement = () => {
   document.body.append(failedSubmitElement);
@@ -166,14 +140,29 @@ const submitForm = async () => {
     }
   } catch (err) {
     addFailedSubmitElement();
+  } finally {
+    document.removeEventListener('keydown', removeOnEscapePressing);
+    document.removeEventListener('mouseup', removeOnClickOutside);
+    trySubmitFormButton.removeEventListener('click', removeOnClick);
+    adFormSubmitButton.textContent = 'Опубликовать';
+    adFormSubmitButton.disabled = false;
   }
-
-  document.removeEventListener('keydown', removeOnEscapePressing);
-  document.removeEventListener('mouseup', removeOnClickOutside);
-  trySubmitFormButton.removeEventListener('click', removeOnClick);
-  adFormSubmitButton.textContent = 'Опубликовать';
-  adFormSubmitButton.disabled = false;
 };
+
+
+pristineForm.addValidator(adFormHeadline, validateFormHeadline, 'Длина сообщения должна быть не менее 30 символов');
+pristineForm.addValidator(adFormPrice, validateFormPrice, 'Мин цена Бунгало - 0 руб, Квартира - 1000, Отель - 3000, Дом - 5000, Дворец - 10000. Макс цена для всех 100 000 руб');
+pristineForm.addValidator(adFormRoomNumber, validateFormRoomNumber, 'Количество комнат должно соответстовать количеству гостей');
+pristineForm.addValidator(adFormRoomCapacity, validateFormRoomCapacity, 'Количество мест должно соответстовать количеству комнат или быть меньше');
+
+adFormHousePhotosInput.addEventListener('change', addPhoto);
+
+adFormCheckInTime.addEventListener('change', () => synchronizeTimeFields(adFormCheckInTime, adFormCheckOutTime));
+adFormCheckOutTime.addEventListener('change', () => synchronizeTimeFields(adFormCheckOutTime, adFormCheckInTime));
+
+adFormAvatarInput.addEventListener('change', (evt) => {
+  adFormAvatar.src = URL.createObjectURL(evt.target.files[0]);
+});
 
 adForm.addEventListener('submit', (evt) => {
   evt.preventDefault();

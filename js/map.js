@@ -58,16 +58,13 @@ const filterByPrice = (price, allOffers) => {
     return allOffers;
   }
 
-  if (price === 'low') {
-    return allOffers.filter((ad) => ad.offer.price < 10000);
-  }
-
-  if (price === 'middle') {
-    return allOffers.filter((ad) => ad.offer.price >= 10000 && ad.offer.price < 50000);
-  }
-
-  if (price === 'high') {
-    return allOffers.filter((ad) => ad.offer.price >= 50000);
+  switch (price) {
+    case 'low':
+      return allOffers.filter((ad) => ad.offer.price < 10000);
+    case 'middle':
+      return allOffers.filter((ad) => ad.offer.price >= 10000 && ad.offer.price < 50000);
+    case 'high':
+      return allOffers.filter((ad) => ad.offer.price >= 50000);
   }
 };
 
@@ -118,8 +115,8 @@ const applyAllFilters = (allOffers) => {
 
 
 const makePopupFeatureList = (features) => {
-  const list = features.map((feature) => `<li class="popup__feature popup__feature--${feature}"></li>`);
-  return list.join('\n');
+  const featureList = features.map((feature) => `<li class="popup__feature popup__feature--${feature}"></li>`);
+  return featureList.join('\n');
 };
 
 const makePopupPhotos = (photos) => {
@@ -228,19 +225,19 @@ const placeUsersOffersOnMap = async (offersInfo) => {
 };
 
 const initActiveState = () => {
-  adForm.classList.remove('ad-form--disabled');
-
-  avatarInput.disabled = false;
-  allFormElementsInForm.forEach((fieldset) => {
-    fieldset.disabled = false;
-  });
-
-  enableSlider();
-  initDraggableMarker();
   if (initQuantities === 0) {
+    adForm.classList.remove('ad-form--disabled');
+
+    avatarInput.disabled = false;
+    allFormElementsInForm.forEach((fieldset) => {
+      fieldset.disabled = false;
+    });
+    enableSlider();
+    initDraggableMarker();
     placeUsersOffersOnMap(getOffers());
     tileLayer.removeEventListener('load', initActiveState);
   } else {
+    initDraggableMarker();
     placeUsersOffersOnMap(savedOffers);
   }
   initQuantities++;
@@ -256,7 +253,6 @@ const initMap = () => {
     initActiveState();
   }
 };
-
 
 export const resetMapAndForms = () => {
   mapFilters.reset();
