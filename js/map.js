@@ -1,5 +1,6 @@
 import { MAX_MARKERS, CENTRE_OF_TOKYO, RERENDER_DELAY } from './constants.js';
 import { disabledSlider, enableSlider, resetSlider } from './slider.js';
+import { debounce, sortByDistance } from './utils.js';
 
 const mapCanvas = document.querySelector('.map__canvas');
 const mapFilters = document.querySelector('.map__filters');
@@ -11,54 +12,13 @@ const allFiltersInMap = [...mapFilters.querySelectorAll('.map__filter')];
 const mapFeatures = mapFilters.querySelector('.map__features');
 
 let map;
+const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+});
+let initQuantities = 0;
 let savedOffers; // to not fetch everytime when you want to reset map
 const usesrMarkersLayer = L.layerGroup();
-
-const getDistance = (lat1, lon1, lat2, lon2) => {
-  const radlat1 = (Math.PI * lat1) / 180;
-  const radlat2 = (Math.PI * lat2) / 180;
-
-  const theta = lon1 - lon2;
-  const radtheta = (Math.PI * theta) / 180;
-
-  let dist =
-        Math.sin(radlat1) * Math.sin(radlat2) +
-        Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
-  dist = Math.acos(dist);
-  dist = (dist * 180) / Math.PI;
-  dist = dist * 60 * 1.1515;
-  dist = dist * 1.609344;
-
-  return dist;
-};
-
-const sortByDistance = (locations) => {
-  for ( const location of locations ) {
-    location.distanceFromOrigin = getDistance( location.lat, location.lng, CENTRE_OF_TOKYO[0], CENTRE_OF_TOKYO[1] );
-  }
-
-  locations.sort( ( a, b ) => a.distanceFromOrigin - b.distanceFromOrigin );
-};
-
-const initActiveState = () => {
-  adForm.classList.remove('ad-form--disabled');
-
-  avatarInput.disabled = false;
-  allFormElementsInForm.forEach((fieldset) => {
-    fieldset.disabled = false;
-  });
-
-
-  enableSlider();
-};
-
-const debounce = (callback, timeoutDelay) => {
-  let timeoutId;
-  return (...rest) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => callback.apply(this, rest), timeoutDelay);
-  };
-};
 
 const disableMapFilters = () => {
   mapFilters.classList.remove('map__filters--disabled');
@@ -66,19 +26,6 @@ const disableMapFilters = () => {
   mapFeatures.disabled = false;
   allFiltersInMap.forEach((filter) => {
     filter.disabled = false;
-  });
-};
-
-const initMap = () => {
-  map = L.map(mapCanvas).setView(CENTRE_OF_TOKYO, 13);
-  const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  });
-  tileLayer.addTo(map);
-
-  tileLayer.addEventListener('load', () => {
-    initActiveState();
   });
 };
 
@@ -229,6 +176,13 @@ const placeUserMarker = (offerLocation, offerData) => {
   usesrMarkersLayer.addTo(map);
 };
 
+const addErrorMessage = () => {
+  const errorElement = document.createElement('p');
+  errorElement.style = 'position: fixed; top: 0; left: 0; right: 0; margin: 0 auto; font-size: 20px; color: #ff0000; text-align: center; z-index: 1000;';
+  errorElement.innerText = 'Похожие объявления не были загружены';
+  document.body.append(errorElement);
+  setTimeout(() => errorElement.remove(), 5000);
+};
 
 const getOffers = async () => {
   try {
@@ -237,11 +191,7 @@ const getOffers = async () => {
     savedOffers = [...offersInfo];
     return offersInfo;
   } catch (err) {
-    const errorElement = document.createElement('p');
-    errorElement.style = 'position: fixed; top: 0; left: 0; right: 0; margin: 0 auto; font-size: 20px; color: #ff0000; text-align: center; z-index: 1000;';
-    errorElement.innerText = 'Похожие объявления не были загружены';
-    document.body.append(errorElement);
-    setTimeout(() => errorElement.remove(), 5000);
+    addErrorMessage();
   }
 };
 
@@ -273,13 +223,40 @@ const placeUsersOffersOnMap = async (offersInfo) => {
       }
     }, RERENDER_DELAY));
   } catch (err) {
-    const errorElement = document.createElement('p');
-    errorElement.style = 'position: fixed; top: 0; left: 0; right: 0; margin: 0 auto; font-size: 20px; color: #ff0000; text-align: center; z-index: 1000;';
-    errorElement.innerText = 'Похожие объявления не были загружены';
-    document.body.append(errorElement);
-    setTimeout(() => errorElement.remove(), 5000);
+    addErrorMessage();
   }
 };
+
+const initActiveState = () => {
+  adForm.classList.remove('ad-form--disabled');
+
+  avatarInput.disabled = false;
+  allFormElementsInForm.forEach((fieldset) => {
+    fieldset.disabled = false;
+  });
+
+  enableSlider();
+  initDraggableMarker();
+  if (initQuantities === 0) {
+    placeUsersOffersOnMap(getOffers());
+    tileLayer.removeEventListener('load', initActiveState);
+  } else {
+    placeUsersOffersOnMap(savedOffers);
+  }
+  initQuantities++;
+};
+
+const initMap = () => {
+  map = L.map(mapCanvas).setView(CENTRE_OF_TOKYO, 13);
+  tileLayer.addTo(map);
+
+  if (initQuantities === 0) {
+    tileLayer.addEventListener('load', initActiveState);
+  } else {
+    initActiveState();
+  }
+};
+
 
 export const resetMapAndForms = () => {
   mapFilters.reset();
@@ -289,11 +266,7 @@ export const resetMapAndForms = () => {
   map.remove();
   usesrMarkersLayer.clearLayers();
   initMap();
-  initDraggableMarker();
-  placeUsersOffersOnMap(savedOffers);
 };
 
 disabledSlider();
 initMap();
-initDraggableMarker();
-placeUsersOffersOnMap(getOffers());

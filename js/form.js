@@ -138,6 +138,19 @@ adFormHousePhotosInput.addEventListener('change', (evt) => {
   }
 });
 
+const addFailedSubmitElement = () => {
+  document.body.append(failedSubmitElement);
+  document.addEventListener('keydown', (evt) => {removeOnEscapePressing(evt, failedSubmitElement);});
+  document.addEventListener('mouseup', (evt) => {removeOnClickOutside(evt, failedSubmitMessage, trySubmitFormButton);});
+  trySubmitFormButton.addEventListener('click', () => {removeOnClick(failedSubmitElement);});
+};
+
+const addSuccessfulSubmitElement = () => {
+  document.body.append(successfulSubmitElement);
+  document.addEventListener('keydown', (evt) => {removeOnEscapePressing(evt, successfulSubmitElement);});
+  document.addEventListener('mouseup', (evt) => {removeOnClickOutside(evt, successfulSubmitMessage);});
+};
+
 const submitForm = async () => {
   const formData = new FormData(adForm);
   adFormSubmitButton.textContent = 'Публикуем...';
@@ -145,19 +158,14 @@ const submitForm = async () => {
   try {
     const response = await fetch('https://25.javascript.htmlacademy.pro/keksobooking', {method: 'POST', body: formData});
     if (response.ok) {
-      document.body.append(successfulSubmitElement);
-      document.addEventListener('keydown', (evt) => {removeOnEscapePressing(evt, successfulSubmitElement);});
-      document.addEventListener('mouseup', (evt) => {removeOnClickOutside(evt, successfulSubmitMessage);});
+      addSuccessfulSubmitElement();
       resetMapAndForms();
       resetSlider();
     } else {
-      document.body.append(failedSubmitElement);
-      document.addEventListener('keydown', (evt) => {removeOnEscapePressing(evt, failedSubmitElement);});
-      document.addEventListener('mouseup', (evt) => {removeOnClickOutside(evt, failedSubmitMessage, trySubmitFormButton);});
-      trySubmitFormButton.addEventListener('click', () => {removeOnClick(failedSubmitElement);});
+      addFailedSubmitElement();
     }
   } catch (err) {
-    console.log(err);
+    addFailedSubmitElement();
   }
 
   document.removeEventListener('keydown', removeOnEscapePressing);
@@ -171,8 +179,6 @@ adForm.addEventListener('submit', (evt) => {
   evt.preventDefault();
   if (pristineForm.validate()) {
     submitForm();
-  } else {
-    console.log('Невозможно загрузить форму');
   }
 });
 
