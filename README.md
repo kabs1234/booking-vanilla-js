@@ -2,6 +2,8 @@
 
 Сделал: Zhashkeyev Aikhan
 
+Ссылка: https://kabs1234.github.io/booking-vanilla-js/
+
 ### Техническое задание
 
 О проекте
