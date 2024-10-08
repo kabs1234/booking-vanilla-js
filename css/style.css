@@ -1032,3 +1032,7 @@ fieldset {
 .hidden {
   display: none;
 }
+
+.noUi-target {
+  margin-bottom: 8px;
+}

@@ -1,6 +1,7 @@
 import { MAX_MARKERS, CENTRE_OF_TOKYO, RERENDER_DELAY } from './constants.js';
-import { disabledSlider, enableSlider, resetSlider } from './slider.js';
-import { debounce, sortByDistance } from './utils.js';
+import { resetHousingImages, resetUserImage } from './form.js';
+import { enableSlider, resetSlider } from './slider.js';
+import { debounce } from './utils.js';
 
 const mapCanvas = document.querySelector('.map__canvas');
 const mapFilters = document.querySelector('.map__filters');
@@ -11,16 +12,17 @@ const avatarInput = adForm.querySelector('.ad-form-header');
 const allFiltersInMap = [...mapFilters.querySelectorAll('.map__filter')];
 const mapFeatures = mapFilters.querySelector('.map__features');
 
-let map;
 const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 });
-let initQuantities = 0;
-let savedOffers; // to not fetch everytime when you want to reset map
-const usesrMarkersLayer = L.layerGroup();
+const usersMarkersLayer = L.layerGroup();
 
-const disableMapFilters = () => {
+let isMapInitialized = false;
+let map;
+let savedUserOffers;
+
+const enableMapFilters = () => {
   mapFilters.classList.remove('map__filters--disabled');
 
   mapFeatures.disabled = false;
@@ -29,7 +31,42 @@ const disableMapFilters = () => {
   });
 };
 
-const initDraggableMarker = () => {
+const enableUserForm = () => {
+  adForm.classList.remove('ad-form--disabled');
+
+  avatarInput.disabled = false;
+  allFormElementsInForm.forEach((fieldset) => {
+    fieldset.disabled = false;
+  });
+};
+
+const getDistance = (lat1, lon1, lat2, lon2) => {
+  const radlat1 = (Math.PI * lat1) / 180;
+  const radlat2 = (Math.PI * lat2) / 180;
+
+  const theta = lon1 - lon2;
+  const radtheta = (Math.PI * theta) / 180;
+
+  let dist =
+        Math.sin(radlat1) * Math.sin(radlat2) +
+        Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+  dist = Math.acos(dist);
+  dist = (dist * 180) / Math.PI;
+  dist = dist * 60 * 1.1515;
+  dist = dist * 1.609344;
+
+  return dist;
+};
+
+const sortByDistance = (locations) => {
+  for ( const location of locations ) {
+    location.distanceFromOrigin = getDistance( location.lat, location.lng, CENTRE_OF_TOKYO[0], CENTRE_OF_TOKYO[1] );
+  }
+
+  locations.sort( ( a, b ) => a.distanceFromOrigin - b.distanceFromOrigin );
+};
+
+const initalizeDraggableMarker = () => {
   const markerIcon = L.icon({
     iconUrl: '../img/markers/marker-52.png',
     iconSize: [52, 52],
@@ -113,7 +150,6 @@ const applyAllFilters = (allOffers) => {
   return allOffersCopy;
 };
 
-
 const makePopupFeatureList = (features) => {
   const featureList = features.map((feature) => `<li class="popup__feature popup__feature--${feature}"></li>`);
   return featureList.join('\n');
@@ -155,10 +191,10 @@ const makeOfferPopup = (offerData) => {
       ${offerData.photos ? `<div class="popup__photos">${makePopupPhotos(offerData.photos)}</div>` : ''}
     </article>
   `;
+
   const offerElement = parser.parseFromString(offerCard, 'text/html');
   return offerElement.body.firstChild;
 };
-
 
 const placeUserMarker = (offerLocation, offerData) => {
   const [lat, lng] = [offerLocation.lat, offerLocation.lng];
@@ -169,100 +205,71 @@ const placeUserMarker = (offerLocation, offerData) => {
     iconAnchor: [20, 40],
   });
   const userMarker = L.marker([lat, lng], {icon: userMarkerIcon}).bindPopup(card).openPopup();
-  userMarker.addTo(usesrMarkersLayer);
-  usesrMarkersLayer.addTo(map);
+  userMarker.addTo(usersMarkersLayer);
+  usersMarkersLayer.addTo(map);
 };
 
-const addErrorMessage = () => {
-  const errorElement = document.createElement('p');
-  errorElement.style = 'position: fixed; top: 0; left: 0; right: 0; margin: 0 auto; font-size: 20px; color: #ff0000; text-align: center; z-index: 1000;';
-  errorElement.innerText = 'Похожие объявления не были загружены';
-  document.body.append(errorElement);
-  setTimeout(() => errorElement.remove(), 5000);
-};
+const placeUsersOffersOnMap = (offersInfo) => {
+  const offersLocations = offersInfo.map((offer) => offer.location);
+  sortByDistance(offersLocations);
+  const offersData = offersInfo.map((offer) => ({...offer.author, ...offer.offer}));
 
-const getOffers = async () => {
-  try {
-    const offersFetch = await fetch('https://25.javascript.htmlacademy.pro/keksobooking/data');
-    const offersInfo = await offersFetch.json();
-    savedOffers = [...offersInfo];
-    return offersInfo;
-  } catch (err) {
-    addErrorMessage();
+  for (let i = 0; i < MAX_MARKERS; i++) {
+    placeUserMarker(offersLocations[i], offersData[i]);
   }
-};
+  mapFilters.addEventListener('change', debounce(() => {
+    const filteredOffers = applyAllFilters(offersInfo);
 
-const placeUsersOffersOnMap = async (offersInfo) => {
+    const filteredOffersLocations = filteredOffers.map((offer) => offer.location);
+    sortByDistance(filteredOffersLocations);
+    const filteredOffersData = filteredOffers.map((offer) => ({...offer.author, ...offer.offer}));
 
-  try {
-    const usersOffers = await offersInfo;
-    const offersLocations = usersOffers.map((offer) => offer.location);
-    sortByDistance(offersLocations);
-    const offersData = usersOffers.map((offer) => ({...offer.author, ...offer.offer}));
+    const filteredUserMarkersQuantity = filteredOffers.length >= MAX_MARKERS ? MAX_MARKERS : filteredOffers.length;
+    usersMarkersLayer.clearLayers();
 
-    for (let i = 0; i < MAX_MARKERS; i++) {
-      placeUserMarker(offersLocations[i], offersData[i]);
+    for (let i = 0; i < filteredUserMarkersQuantity; i++) {
+      placeUserMarker(filteredOffersLocations[i], filteredOffersData[i]);
     }
-    disableMapFilters();
-
-    mapFilters.addEventListener('change', debounce(() => {
-      const filteredOffers = applyAllFilters(usersOffers);
-
-      const filteredOffersLocations = filteredOffers.map((offer) => offer.location);
-      sortByDistance(filteredOffersLocations);
-      const filteredOffersData = filteredOffers.map((offer) => ({...offer.author, ...offer.offer}));
-
-      const filteredUserMarkersQuantity = filteredOffers.length >= MAX_MARKERS ? MAX_MARKERS : filteredOffers.length;
-      usesrMarkersLayer.clearLayers();
-
-      for (let i = 0; i < filteredUserMarkersQuantity; i++) {
-        placeUserMarker(filteredOffersLocations[i], filteredOffersData[i]);
-      }
-    }, RERENDER_DELAY));
-  } catch (err) {
-    addErrorMessage();
-  }
+  }, RERENDER_DELAY));
 };
 
-const initActiveState = () => {
-  if (initQuantities === 0) {
-    adForm.classList.remove('ad-form--disabled');
-
-    avatarInput.disabled = false;
-    allFormElementsInForm.forEach((fieldset) => {
-      fieldset.disabled = false;
-    });
+const initalizeActiveState = () => {
+  if (!isMapInitialized) {
+    enableUserForm();
     enableSlider();
-    initDraggableMarker();
-    placeUsersOffersOnMap(getOffers());
-    tileLayer.removeEventListener('load', initActiveState);
+    enableMapFilters();
+    initalizeDraggableMarker();
+
+    placeUsersOffersOnMap(savedUserOffers);
+    tileLayer.removeEventListener('load', initalizeActiveState);
   } else {
-    initDraggableMarker();
-    placeUsersOffersOnMap(savedOffers);
+    initalizeDraggableMarker();
+    placeUsersOffersOnMap(savedUserOffers);
   }
-  initQuantities++;
+
+  isMapInitialized = true;
 };
 
-const initMap = () => {
+export const initalizeMap = (offersInfo) => {
   map = L.map(mapCanvas).setView(CENTRE_OF_TOKYO, 13);
   tileLayer.addTo(map);
+  savedUserOffers = [...offersInfo];
 
-  if (initQuantities === 0) {
-    tileLayer.addEventListener('load', initActiveState);
+  if (!isMapInitialized) {
+    tileLayer.addEventListener('load', initalizeActiveState);
   } else {
-    initActiveState();
+    initalizeActiveState();
   }
 };
 
 export const resetMapAndForms = () => {
   mapFilters.reset();
+  resetUserImage();
+  resetHousingImages();
   resetSlider();
   adForm.reset();
   map.off();
   map.remove();
-  usesrMarkersLayer.clearLayers();
-  initMap();
+  usersMarkersLayer.clearLayers();
+  initalizeMap(savedUserOffers);
 };
-
-disabledSlider();
-initMap();

@@ -9,7 +9,7 @@ const setSliderFromPrice = () => {
   slider.noUiSlider.set(priceInput.value);
 };
 
-const initSlider = () => {
+export const initalizeSlider = () => {
   noUiSlider.create(slider, {
     start: [0],
     connect: true,
@@ -34,4 +34,3 @@ export const enableSlider = () => {
   slider.noUiSlider.enable();
 };
 
-initSlider();
