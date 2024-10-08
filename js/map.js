@@ -68,7 +68,7 @@ const sortByDistance = (locations) => {
 
 const initalizeDraggableMarker = () => {
   const markerIcon = L.icon({
-    iconUrl: '../img/markers/marker-52.png',
+    iconUrl: './img/markers/marker-52.png',
     iconSize: [52, 52],
     iconAnchor: [26, 52],
   });
